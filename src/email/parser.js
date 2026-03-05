@@ -270,6 +270,13 @@ export function extractVerificationCode({ subject = '', text = '', html = '' } =
     new RegExp(`${alphaCodeChunk}[^\\n\\r]{0,30}${kw}`, 'i'),
     new RegExp(`验证码为[：:]\\s*${alphaCodeChunk}`, 'i'),
     new RegExp(`code is[：:]\\s*${alphaCodeChunk}`, 'i'),
+    // Gemini 特定格式："您的一次性验证码为：" 后面跟着验证码
+    new RegExp(`您的一次性验证码为[：:]\\s*\\n*\\s*([A-Z0-9]{4,8})\\s*\\n`, 'i'),
+    new RegExp(`一次性验证码为[：:]\\s*\\n*\\s*([A-Z0-9]{4,8})\\s*\\n`, 'i'),
+    // 匹配独立的 6 位字母数字组合（前后有换行）
+    new RegExp(`\\n\\s*([A-Z0-9]{6})\\s*\\n`, 'i'),
+    // 匹配 "验证码" 后面跟着换行和验证码
+    new RegExp(`验证码[是为]*[：:]\\s*\\n+\\s*([A-Z0-9]{4,8})\\s*\\n`, 'i'),
   ];
   for (const r of alphaPatterns) {
     const m = sources.body.match(r);

@@ -87,10 +87,12 @@ export async function handleEmailReceive(request, db, env) {
     } catch (_) { objectKey = ''; }
 
     const previewBase = (text || html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-    const preview = String(previewBase || '').slice(0, 120);
+    const preview = String(previewBase || '').slice(0, 500);  // 增加预览长度以便提取验证码
     let verificationCode = '';
     try {
-      verificationCode = extractVerificationCode({ subject, text, html });
+      // 使用更长的文本内容来提取验证码
+      const longText = text || html.replace(/<[^>]+>/g, ' ');
+      verificationCode = extractVerificationCode({ subject, text: longText, html });
     } catch (_) { }
 
     await db.prepare(`

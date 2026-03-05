@@ -252,9 +252,32 @@ export function extractVerificationCode({ subject = '', text = '', html = '' } =
     return '';
   }
 
+  function normalizeCode(s) {
+    // 支持字母数字混合验证码
+    const code = String(s || '').replace(/[^A-Za-z0-9]+/g, '');
+    if (code.length >= minLen && code.length <= maxLen) return code.toUpperCase();
+    return '';
+  }
+
   const kw = '(?:verification|one[-\\s]?time|two[-\\s]?factor|2fa|security|auth|login|confirm|code|otp|验证码|校验码|驗證碼|確認碼|認證碼|認証コード|인증코드|코드)';
   const sepClass = "[\\u00A0\\s\\-–—_.·•∙‧'']";
   const codeChunk = `([0-9](?:${sepClass}?[0-9]){3,7})`;
+  const alphaCodeChunk = `([A-Za-z0-9](?:${sepClass}?[A-Za-z0-9]){3,7})`;
+
+  // 首先尝试匹配字母数字混合验证码（如 Gemini 的 DBNMMM）
+  const alphaPatterns = [
+    new RegExp(`${kw}[^\\n\\r]{0,30}${alphaCodeChunk}`, 'i'),
+    new RegExp(`${alphaCodeChunk}[^\\n\\r]{0,30}${kw}`, 'i'),
+    new RegExp(`验证码为[：:]\\s*${alphaCodeChunk}`, 'i'),
+    new RegExp(`code is[：:]\\s*${alphaCodeChunk}`, 'i'),
+  ];
+  for (const r of alphaPatterns) {
+    const m = sources.body.match(r);
+    if (m && m[1]) {
+      const code = normalizeCode(m[1]);
+      if (code && /^[A-Z0-9]+$/.test(code)) return code;
+    }
+  }
 
   const subjectOrdereds = [
     new RegExp(`${kw}[^\n\r\d]{0,20}(?<!\\d)${codeChunk}(?!\\d)`, 'i'),

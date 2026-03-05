@@ -14,15 +14,34 @@ import { sha256Hex } from '../utils/common.js';
 export function getJwtPayload(request, options = {}) {
   // 优先使用服务端传入的已解析身份（支持 __root__ 超管）
   if (options && options.authPayload) return options.authPayload;
+  
+  let token = '';
+  
+  // 尝试从 Authorization 头部获取 Bearer token
   try {
-    const cookie = request.headers.get('Cookie') || '';
-    const token = (cookie.split(';').find(s => s.trim().startsWith('iding-session=')) || '').split('=')[1] || '';
+    const authHeader = request.headers.get('Authorization') || '';
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  } catch (_) { }
+  
+  // 如果没有从 Authorization 获取到，尝试从 Cookie 获取
+  if (!token) {
+    try {
+      const cookie = request.headers.get('Cookie') || '';
+      token = (cookie.split(';').find(s => s.trim().startsWith('iding-session=')) || '').split('=')[1] || '';
+    } catch (_) { }
+  }
+  
+  // 解析 JWT token
+  try {
     const parts = token.split('.');
     if (parts.length === 3) {
       const json = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
       return JSON.parse(json);
     }
   } catch (_) { }
+  
   return null;
 }
 

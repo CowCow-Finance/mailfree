@@ -271,18 +271,29 @@ export function extractVerificationCode({ subject = '', text = '', html = '' } =
     new RegExp(`验证码为[：:]\\s*${alphaCodeChunk}`, 'i'),
     new RegExp(`code is[：:]\\s*${alphaCodeChunk}`, 'i'),
     // Gemini 特定格式："您的一次性验证码为：" 后面跟着验证码
-    new RegExp(`您的一次性验证码为[：:]\\s*\\n*\\s*([A-Z0-9]{4,8})\\s*\\n`, 'i'),
-    new RegExp(`一次性验证码为[：:]\\s*\\n*\\s*([A-Z0-9]{4,8})\\s*\\n`, 'i'),
-    // 匹配独立的 6 位字母数字组合（前后有换行）
-    new RegExp(`\\n\\s*([A-Z0-9]{6})\\s*\\n`, 'i'),
+    new RegExp(`您的一次性验证码为[\\s\\S]{0,50}?([A-Z0-9]{6})`, 'i'),
+    new RegExp(`一次性验证码为[\\s\\S]{0,50}?([A-Z0-9]{6})`, 'i'),
     // 匹配 "验证码" 后面跟着换行和验证码
-    new RegExp(`验证码[是为]*[：:]\\s*\\n+\\s*([A-Z0-9]{4,8})\\s*\\n`, 'i'),
+    new RegExp(`验证码[是为]*[：:][\\s\\S]{0,30}?([A-Z0-9]{6})`, 'i'),
+    // 匹配独立的 6 位字母数字组合（在文本中间）
+    new RegExp(`\\b([A-Z0-9]{6})\\b`, 'g'),
   ];
   for (const r of alphaPatterns) {
-    const m = sources.body.match(r);
-    if (m && m[1]) {
-      const code = normalizeCode(m[1]);
-      if (code && /^[A-Z0-9]+$/.test(code)) return code;
+    if (r.global) {
+      // 对于全局匹配，找到所有匹配项并返回第一个6位的
+      const matches = sources.body.matchAll(r);
+      for (const match of matches) {
+        const code = normalizeCode(match[1]);
+        if (code && code.length === 6 && /^[A-Z0-9]+$/.test(code)) {
+          return code;
+        }
+      }
+    } else {
+      const m = sources.body.match(r);
+      if (m && m[1]) {
+        const code = normalizeCode(m[1]);
+        if (code && /^[A-Z0-9]+$/.test(code)) return code;
+      }
     }
   }
 

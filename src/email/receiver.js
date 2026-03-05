@@ -88,12 +88,23 @@ export async function handleEmailReceive(request, db, env) {
 
     const previewBase = (text || html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
     const preview = String(previewBase || '').slice(0, 500);  // 增加预览长度以便提取验证码
+    
+    // 合并 text 和 html 内容以获得完整的邮件内容
+    let fullText = text || '';
+    if (html) {
+      const htmlText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (htmlText.length > fullText.length) {
+        fullText = htmlText;
+      }
+    }
+    
     let verificationCode = '';
     try {
-      // 使用更长的文本内容来提取验证码
-      const longText = text || html.replace(/<[^>]+>/g, ' ');
-      verificationCode = extractVerificationCode({ subject, text: longText, html });
-    } catch (_) { }
+      verificationCode = extractVerificationCode({ subject, text: fullText, html });
+      console.log(`[DEBUG] Extracted code: ${verificationCode}, text length: ${fullText.length}, html length: ${html.length}`);
+    } catch (e) { 
+      console.log(`[DEBUG] Extract error: ${e.message}`);
+    }
 
     await db.prepare(`
       INSERT INTO messages (mailbox_id, sender, to_addrs, subject, verification_code, preview, r2_bucket, r2_object_key)

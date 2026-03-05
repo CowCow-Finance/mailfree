@@ -49,12 +49,47 @@ export async function handleEmailsApi(request, db, url, path, options) {
       
       try {
         const { results } = await db.prepare(`
-          SELECT id, sender, subject, received_at, is_read, preview, verification_code
+          SELECT id, sender, subject, received_at, is_read, preview, verification_code, r2_object_key
           FROM messages 
           WHERE mailbox_id = ?${timeFilter}
           ORDER BY received_at DESC 
           LIMIT ?
         `).bind(mailboxId, ...timeParam, limit).all();
+        
+        // 如果 verification_code 不完整，从 R2 读取完整邮件重新提取
+        if (results && r2) {
+          for (const email of results) {
+            if (!email.verification_code || email.verification_code.length < 6) {
+              try {
+                if (email.r2_object_key) {
+                  const obj = await r2.get(email.r2_object_key);
+                  if (obj) {
+                    let raw = '';
+                    if (typeof obj.text === 'function') raw = await obj.text();
+                    else if (typeof obj.arrayBuffer === 'function') raw = await new Response(await obj.arrayBuffer()).text();
+                    else raw = await new Response(obj.body).text();
+                    const parsed = parseEmailBody(raw || '');
+                    const { extractVerificationCode } = await import('../email/parser.js');
+                    const newCode = extractVerificationCode({ 
+                      subject: email.subject, 
+                      text: parsed.text, 
+                      html: parsed.html 
+                    });
+                    if (newCode && newCode.length >= 4) {
+                      email.verification_code = newCode;
+                      // 更新数据库中的验证码
+                      await db.prepare('UPDATE messages SET verification_code = ? WHERE id = ?')
+                        .bind(newCode, email.id).run();
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('从 R2 提取验证码失败:', e);
+              }
+            }
+          }
+        }
+        
         return Response.json(results);
       } catch (e) {
         const { results } = await db.prepare(`
